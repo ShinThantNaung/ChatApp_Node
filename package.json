@@ -1,0 +1,29 @@
+{
+  "name": "chatapp_node",
+  "version": "1.0.0",
+  "description": "Node backend for chat app",
+  "homepage": "https://github.com/ShinThantNaung/ChatApp_Node#readme",
+  "bugs": {
+    "url": "https://github.com/ShinThantNaung/ChatApp_Node/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShinThantNaung/ChatApp_Node.git"
+  },
+  "license": "ISC",
+  "author": "Shin Thant Naung",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "npm run dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.7.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.19.3",
+    "socket.io": "^4.8.3"
+  }
+}
