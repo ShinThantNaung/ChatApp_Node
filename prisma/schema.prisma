@@ -13,19 +13,88 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
-model user {
-  id        Int      @id @unique @default(autoincrement())
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
   email     String   @unique
-  name      String?
-  mostPlayed String?
-  winrate   Float?
+  password  String
+  avatarUrl String?
   createdAt DateTime @default(now())
+
+  pings     Ping[]
+  members   PingMember[]
+  messages  Message[]
+  stats     UserStats?
 }
 
-model squad{
-  id        Int      @id @unique @default(autoincrement())
-  name      String   @unique
-  winrate   Float?
+model Ping {
+  id         String   @id @default(uuid())
+  creatorId  String
+  title      String
+  gameMode   String
+  urgency    Boolean
+  maxPlayers Int
+  status     String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime?
+
+  creator  User         @relation(fields: [creatorId], references: [id])
+  members  PingMember[]
+  roles    PingRole[]
+  messages Message[]
+}
+
+model Role {
+  id   String @id @default(uuid())
+  name String
+
+  pingRoles PingRole[]
+  members   PingMember[]
+}
+
+model PingRole {
+  id     String @id @default(uuid())
+  pingId String
+  roleId String
+  slots  Int
+
+  ping Ping @relation(fields: [pingId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+}
+
+model PingMember {
+  id       String @id @default(uuid())
+  pingId   String
+  userId   String
+  roleId   String
+  status   String
+  joinedAt DateTime @default(now())
+
+  ping Ping @relation(fields: [pingId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  pingId    String
+  senderId  String
+  content   String
+  type      String
   createdAt DateTime @default(now())
+
+  ping   Ping @relation(fields: [pingId], references: [id])
+  sender User @relation(fields: [senderId], references: [id])
+}
+
+model UserStats {
+  id          String @id @default(uuid())
+  userId      String @unique
+  gamesPlayed Int
+  wins        Int
+  losses      Int
+  mvpCount    Int
+  winRate     Float
+
+  user User @relation(fields: [userId], references: [id])
 }
