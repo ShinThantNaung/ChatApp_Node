@@ -26,7 +26,7 @@ const authenticate = async (req, res, next) => {
         return res.status(401).json({ message: 'Invalid token' });
     }
 };
-
+/*
 const validate = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
 
@@ -42,4 +42,5 @@ const validate = (schema) => (req, res, next) => {
 
   next();
 };
-module.exports = { authenticate, validate };
+*/
+module.exports = { authenticate };
