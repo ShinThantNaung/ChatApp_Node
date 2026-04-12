@@ -1,9 +1,9 @@
 const express = require('express');
 require('dotenv').config();
-const { initSocket } = require('./socket');
+const { initSocket } = require('./src/socket');
 const http = require('http');
 const cors = require('cors');
-const routes = require('./routes');
+const routes = require('./src/routes');
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -17,7 +17,8 @@ app.get('/', (req, res) => {
     res.send('Server is running!');
 });
 
+initSocket(server);
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-initSocket(server);
+
