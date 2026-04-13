@@ -1,4 +1,14 @@
 const pingService = require('./ping.service');
+const { getIo } = require('../../sockets');
+
+const emitPingEvent = (eventName, payload) => {
+    try {
+        const io = getIo();
+        io.emit(eventName, payload);
+    } catch (err) {
+        // Avoid breaking HTTP flow when socket server is not initialized.
+    }
+};
 
 const getStatusCode = (message) => {
     switch (message) {
@@ -27,7 +37,11 @@ const getStatusCode = (message) => {
 
 const createPing = async (req, res) => {
     try {
-        const result = await pingService.createPing(req.user?.id, req.body);
+        const result = await pingService.createPing(req.body, req.user?.id);
+        emitPingEvent('ping:created', {
+            ping: result,
+            actorId: req.user?.id,
+        });
         res.status(201).json(result);
     } catch (err) {
         res.status(getStatusCode(err.message)).json({ message: err.message });
@@ -38,6 +52,11 @@ const joinPing = async (req, res) => {
     try {
         const { pingId } = req.body;
         const result = await pingService.joinPing(pingId, req.user?.id);
+        emitPingEvent('ping:joined', {
+            pingId,
+            member: result,
+            actorId: req.user?.id,
+        });
         res.status(200).json(result);
     } catch (err) {
         res.status(getStatusCode(err.message)).json({ message: err.message });
@@ -57,6 +76,10 @@ const leavePing = async (req, res) => {
     try {
         const { pingId } = req.body;
         const result = await pingService.leavePing(pingId, req.user?.id);
+        emitPingEvent('ping:left', {
+            pingId,
+            actorId: req.user?.id,
+        });
         res.status(200).json(result);
     } catch (err) {
         res.status(getStatusCode(err.message)).json({ message: err.message });
