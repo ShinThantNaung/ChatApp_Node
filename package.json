@@ -15,7 +15,8 @@
   "type": "commonjs",
   "main": "server.js",
   "scripts": {
-    "test": "npm run dev",
+    "test": "npm run test:ping",
+    "test:ping": "node --test src/module/ping/ping.service.test.js src/module/ping/ping.controller.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "prisma:generate": "prisma generate",
