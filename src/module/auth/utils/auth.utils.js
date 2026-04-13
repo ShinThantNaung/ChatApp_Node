@@ -7,4 +7,8 @@ const generateToken = (userId) => {
     return jwt.sign({ id: userId }, secret, { expiresIn: '1h' });
 };
 
-module.exports = { generateToken };
+const verifyToken = (token) => {
+    return jwt.verify(token, secret);
+};
+
+module.exports = { generateToken, verifyToken };
