@@ -33,11 +33,14 @@ test('createPing creates ping with trimmed title and creator as first member', a
     const createArgs = [];
     const prismaMock = {
         ping: {
-            findUnique: async () => null,
+            findFirst: async () => null,
             create: async (args) => {
                 createArgs.push(args);
                 return { id: 'ping-1', ...args.data };
             },
+        },
+        role: {
+            findMany: async () => [{ id: 'top' }],
         },
         pingMember: {},
     };
@@ -58,6 +61,32 @@ test('createPing creates ping with trimmed title and creator as first member', a
     assert.equal(createArgs[0].data.creatorId, 'user-1');
     assert.equal(createArgs[0].data.members.create.userId, 'user-1');
     assert.equal(createArgs[0].data.members.create.roleId, 'top');
+});
+
+test('createPing throws when provided roleIds do not exist', async () => {
+    const prismaMock = {
+        ping: {
+            findFirst: async () => null,
+            create: async () => {
+                throw new Error('create should not be called');
+            },
+        },
+        role: {
+            findMany: async () => [],
+        },
+        pingMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.createPing({
+            title: 'Rank Push',
+            gameMode: 'rank',
+            maxPlayers: 5,
+            roles: [{ roleId: 'ROLE_ID_1', slots: 1 }],
+        }, 'user-1'),
+        /One or more roleIds are invalid/
+    );
 });
 
 test('joinPing assigns first available role', async () => {

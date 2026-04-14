@@ -23,6 +23,8 @@ const getStatusCode = (message) => {
         case 'Ping payload is required':
         case 'Ping id is required':
         case 'At least one role is required':
+        case 'Each role must include a valid roleId and slots > 0':
+        case 'One or more roleIds are invalid':
             return 422;
         case 'Already joined this ping':
         case 'Ping is full':

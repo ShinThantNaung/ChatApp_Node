@@ -16,7 +16,31 @@ const createPing = async (data, userId) => {
         throw new Error('At least one role is required');
     }
 
-    const existingPing = await prisma.ping.findUnique({ where: { title } });
+    const normalizedRoles = roles.map((r) => ({
+        roleId: typeof r.roleId === 'string' ? r.roleId.trim() : '',
+        slots: Number(r.slots),
+    }));
+
+    const hasInvalidRolePayload = normalizedRoles.some((r) => !r.roleId || !Number.isInteger(r.slots) || r.slots <= 0);
+    if (hasInvalidRolePayload) {
+        throw new Error('Each role must include a valid roleId and slots > 0');
+    }
+
+    const uniqueRoleIds = [...new Set(normalizedRoles.map((r) => r.roleId))];
+    const existingRoles = await prisma.role.findMany({
+        where: {
+            id: {
+                in: uniqueRoleIds,
+            },
+        },
+        select: { id: true },
+    });
+
+    if (existingRoles.length !== uniqueRoleIds.length) {
+        throw new Error('One or more roleIds are invalid');
+    }
+
+    const existingPing = await prisma.ping.findFirst({ where: { title } });
     if (existingPing) {
         throw new Error('Ping already exists');
     }
@@ -31,7 +55,7 @@ const createPing = async (data, userId) => {
             creatorId: userId,
 
             roles: {
-                create: roles.map((r) => ({
+                create: normalizedRoles.map((r) => ({
                     roleId: r.roleId,
                     slots: r.slots,
                 })),
@@ -40,7 +64,7 @@ const createPing = async (data, userId) => {
             members: {
                 create: {
                     userId,
-                    roleId: roles[0].roleId,
+                    roleId: normalizedRoles[0].roleId,
                     status: 'joined',
                 },
             },
