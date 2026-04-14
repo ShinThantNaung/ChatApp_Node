@@ -16,28 +16,71 @@ const createPing = async (data, userId) => {
         throw new Error('At least one role is required');
     }
 
-    const normalizedRoles = roles.map((r) => ({
-        roleId: typeof r.roleId === 'string' ? r.roleId.trim() : '',
-        slots: Number(r.slots),
-    }));
+    const normalizedRoles = roles.map((r) => {
+        if (typeof r === 'string') {
+            return {
+                roleId: '',
+                roleName: r.trim(),
+                slots: 1,
+            };
+        }
 
-    const hasInvalidRolePayload = normalizedRoles.some((r) => !r.roleId || !Number.isInteger(r.slots) || r.slots <= 0);
-    if (hasInvalidRolePayload) {
-        throw new Error('Each role must include a valid roleId and slots > 0');
-    }
+        const roleNameValue =
+            typeof r?.role === 'string'
+                ? r.role
+                : typeof r?.roleName === 'string'
+                    ? r.roleName
+                    : typeof r?.name === 'string'
+                        ? r.name
+                        : '';
 
-    const uniqueRoleIds = [...new Set(normalizedRoles.map((r) => r.roleId))];
-    const existingRoles = await prisma.role.findMany({
-        where: {
-            id: {
-                in: uniqueRoleIds,
-            },
-        },
-        select: { id: true },
+        return {
+            roleId: typeof r?.roleId === 'string' ? r.roleId.trim() : '',
+            roleName: roleNameValue.trim(),
+            slots: Number(r?.slots),
+        };
     });
 
-    if (existingRoles.length !== uniqueRoleIds.length) {
-        throw new Error('One or more roleIds are invalid');
+    const hasInvalidRolePayload = normalizedRoles.some((r) => (!r.roleId && !r.roleName) || !Number.isInteger(r.slots) || r.slots <= 0);
+    if (hasInvalidRolePayload) {
+        throw new Error('Each role must include roleId or role name, and slots > 0');
+    }
+
+    const uniqueRoleIds = [...new Set(normalizedRoles.map((r) => r.roleId).filter(Boolean))];
+    const uniqueRoleNames = [...new Set(normalizedRoles.map((r) => r.roleName).filter(Boolean))];
+
+    const whereOr = [];
+    if (uniqueRoleIds.length > 0) {
+        whereOr.push({ id: { in: uniqueRoleIds } });
+    }
+    if (uniqueRoleNames.length > 0) {
+        whereOr.push({ name: { in: uniqueRoleNames } });
+    }
+
+    const existingRoles = await prisma.role.findMany({
+        where: { OR: whereOr },
+        select: { id: true, name: true },
+    });
+
+    const roleById = new Map(existingRoles.map((r) => [r.id, r.id]));
+    const roleByName = new Map(existingRoles.map((r) => [r.name.toLowerCase(), r.id]));
+
+    const resolvedRoles = normalizedRoles.map((r) => {
+        if (r.roleId) {
+            return {
+                roleId: roleById.get(r.roleId),
+                slots: r.slots,
+            };
+        }
+
+        return {
+            roleId: roleByName.get(r.roleName.toLowerCase()),
+            slots: r.slots,
+        };
+    });
+
+    if (resolvedRoles.some((r) => !r.roleId)) {
+        throw new Error('One or more roles are invalid');
     }
 
     const existingPing = await prisma.ping.findFirst({ where: { title } });
@@ -55,7 +98,7 @@ const createPing = async (data, userId) => {
             creatorId: userId,
 
             roles: {
-                create: normalizedRoles.map((r) => ({
+                create: resolvedRoles.map((r) => ({
                     roleId: r.roleId,
                     slots: r.slots,
                 })),
@@ -64,7 +107,7 @@ const createPing = async (data, userId) => {
             members: {
                 create: {
                     userId,
-                    roleId: normalizedRoles[0].roleId,
+                    roleId: resolvedRoles[0].roleId,
                     status: 'joined',
                 },
             },
