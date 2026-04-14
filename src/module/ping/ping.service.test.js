@@ -194,3 +194,51 @@ test('leavePing throws when member is not part of ping', async () => {
         /Not a member of this ping/
     );
 });
+
+test('deletePing deletes ping when requester is creator', async () => {
+    let transactionCalls = 0;
+    const prismaMock = {
+        $transaction: async (ops) => {
+            transactionCalls += 1;
+            for (const op of ops) {
+                await op;
+            }
+        },
+        ping: {
+            findUnique: async () => ({ id: 'ping-1', creatorId: 'user-1' }),
+            delete: async ({ where }) => ({ id: where.id }),
+        },
+        pingRole: {
+            deleteMany: async () => ({ count: 1 }),
+        },
+        message: {
+            deleteMany: async () => ({ count: 0 }),
+        },
+        pingMember: {},
+    };
+    prismaMock.pingMember.deleteMany = async () => ({ count: 1 });
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const result = await service.deletePing('ping-1', 'user-1');
+
+    assert.equal(result.message, 'Ping deleted successfully');
+    assert.equal(transactionCalls, 1);
+});
+
+test('deletePing throws when requester is not creator', async () => {
+    const prismaMock = {
+        ping: {
+            findUnique: async () => ({ id: 'ping-1', creatorId: 'owner-user' }),
+            delete: async () => {
+                throw new Error('delete should not be called');
+            },
+        },
+        pingMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.deletePing('ping-1', 'user-2'),
+        /Only the creator can delete this ping/
+    );
+});

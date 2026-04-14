@@ -214,4 +214,35 @@ const leavePing = async (pingId, userId) => {
     }
 };
 
-module.exports = { createPing, joinPing, getActivePing, leavePing };
+const deletePing = async (pingId, userId) => {
+    if (!pingId) {
+        throw new Error('Ping id is required');
+    }
+    if (!userId) {
+        throw new Error('Authentication required');
+    }
+    try {
+        const ping = await prisma.ping.findUnique({ where: { id: pingId } });
+        if (!ping) {
+            throw new Error('Ping does not exist');
+        }
+        if (ping.creatorId !== userId) {
+            throw new Error('Only the creator can delete this ping');
+        }
+
+        await prisma.$transaction([
+            prisma.message.deleteMany({ where: { pingId } }),
+            prisma.pingMember.deleteMany({ where: { pingId } }),
+            prisma.pingRole.deleteMany({ where: { pingId } }),
+            prisma.ping.delete({ where: { id: pingId } }),
+        ]);
+
+        return { message: 'Ping deleted successfully' };
+    } catch (err) {
+        if (err.message === 'Ping does not exist' || err.message === 'Only the creator can delete this ping') {
+            throw err;
+        }
+        throw new Error('Failed to delete ping');
+    }
+};
+module.exports = { createPing, joinPing, getActivePing, leavePing, deletePing };

@@ -20,6 +20,8 @@ const getStatusCode = (message) => {
             return 404;
         case 'Authentication required':
             return 401;
+        case 'Only the creator can delete this ping':
+            return 403;
         case 'Ping payload is required':
         case 'Ping id is required':
         case 'At least one role is required':
@@ -33,6 +35,7 @@ const getStatusCode = (message) => {
         case 'Not a member of this ping':
             return 404;
         case 'Failed to leave ping':
+        case 'Failed to delete ping':
             return 500;
         default:
             return 500;
@@ -95,4 +98,19 @@ const leavePing = async (req, res) => {
         sendError(res, err);
     }
 };
-module.exports = { createPing, joinPing, getActivePing, leavePing };
+
+const deletePing = async (req, res) => {
+    try {
+        const { pingId } = req.body;
+        const result = await pingService.deletePing(pingId, req.user?.id);
+        emitPingEvent('ping:deleted', {
+            pingId,
+            actorId: req.user?.id,
+        });
+        res.status(200).json(result);
+    } catch (err) {
+        sendError(res, err);
+    }
+};
+
+module.exports = { createPing, joinPing, getActivePing, leavePing, deletePing };

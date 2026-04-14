@@ -117,3 +117,31 @@ test('leavePing still returns success when socket is unavailable', async () => {
     assert.equal(res.statusCode, 200);
     assert.equal(res.payload.message, 'Left ping successfully');
 });
+
+test('deletePing returns 200 and emits ping:deleted', async () => {
+    const emits = [];
+    const serviceMock = {
+        deletePing: async () => ({ message: 'Ping deleted successfully' }),
+    };
+    const controller = loadController({
+        serviceMock,
+        ioMock: {
+            emit: (...args) => emits.push(args),
+        },
+    });
+
+    const req = {
+        body: { pingId: 'ping-1' },
+        user: { id: 'user-1' },
+    };
+    const res = makeRes();
+
+    await controller.deletePing(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload.message, 'Ping deleted successfully');
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0][0], 'ping:deleted');
+    assert.equal(emits[0][1].pingId, 'ping-1');
+    assert.equal(emits[0][1].actorId, 'user-1');
+});
