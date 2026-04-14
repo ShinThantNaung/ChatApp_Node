@@ -3,6 +3,7 @@ const authService = require('../services/auth.services');
 const getStatusCode = (message) => {
     switch (message) {
         case 'Email and password are required':
+        case 'Username, email, and password are required':
         case 'Name, email, and password are required':
             return 422;
         case 'User already exists':
@@ -18,8 +19,8 @@ const getStatusCode = (message) => {
 
 const register = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        const result = await authService.register(name, email, password);
+        const { username, email, password } = req.body;
+        const result = await authService.register(username, email, password);
         res.status(201).json(result);
     } catch (err) {
         res.status(getStatusCode(err.message)).json({ message: err.message });
@@ -28,8 +29,8 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        const result = await authService.login(name, email, password);
+        const { username, email, password } = req.body;
+        const result = await authService.login(username, email, password);
         res.status(200).json(result);
     } catch (err) {
         res.status(getStatusCode(err.message)).json({ message: err.message });

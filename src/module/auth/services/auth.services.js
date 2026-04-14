@@ -2,12 +2,12 @@ const prisma = require('../config/auth.config');
 const bcrypt = require('bcrypt');
 const { generateToken } = require('../utils/auth.utils');
 
-const register = async (name, email, password) => {
-    if (!name || !email || !password || name.trim() === '' || email.trim() === '' || password.trim() === '') {
-        throw new Error('Name, email, and password are required');
+const register = async (username, email, password) => {
+    if (!username || !email || !password || username.trim() === '' || email.trim() === '' || password.trim() === '') {
+        throw new Error('Username, email, and password are required');
     }
 
-    const normalizedName = name.trim();
+    const normalizedUsername = username.trim();
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await prisma.user.findUnique({
@@ -21,7 +21,7 @@ const register = async (name, email, password) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
         data: {
-            name: normalizedName,
+            username: normalizedUsername,
             email: normalizedEmail,
             password: hashedPassword,
         },
@@ -31,24 +31,24 @@ const register = async (name, email, password) => {
     return {
         user: {
             id: user.id,
-            name: user.name,
+            username: user.username,
             email: user.email,
         },
         token,
     };
 };
 
-const login = async (name, email, password) => {
-    if (!name || !email || !password || name.trim() === '' || email.trim() === '' || password.trim() === '') {
-        throw new Error('Name, email, and password are required');
+const login = async (username, email, password) => {
+    if (!username || !email || !password || username.trim() === '' || email.trim() === '' || password.trim() === '') {
+        throw new Error('Username, email, and password are required');
     }
 
-    const normalizedName = name.trim();
+    const normalizedUsername = username.trim();
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
         where: {
-            name: normalizedName,
+            username: normalizedUsername,
             email: normalizedEmail,
         },
     });
@@ -66,7 +66,7 @@ const login = async (name, email, password) => {
     return {
         user: {
             id: existingUser.id,
-            name: existingUser.name,
+            username: existingUser.username,
             email: existingUser.email,
         },
         token,

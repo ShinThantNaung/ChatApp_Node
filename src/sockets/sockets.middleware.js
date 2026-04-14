@@ -25,7 +25,7 @@ const socketAuth = async (socket, next) => {
 		const decoded = verifyToken(token);
 		const user = await prisma.user.findUnique({
 			where: { id: decoded.id },
-			select: { id: true, name: true, email: true },
+			select: { id: true, username: true, email: true },
 		});
 
 		if (!user) {

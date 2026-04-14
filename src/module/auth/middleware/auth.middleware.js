@@ -20,7 +20,7 @@ const authenticate = async (req, res, next) => {
     if (!user) {
         return res.status(401).json({ message: 'User not found' });
     }
-    req.user = { id: user.id, name: user.name, email: user.email };
+    req.user = { id: user.id, username: user.username, email: user.email };
     next();
     } catch (err) {
         return res.status(401).json({ message: 'Invalid token' });
