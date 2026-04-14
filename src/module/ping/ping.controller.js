@@ -32,9 +32,17 @@ const getStatusCode = (message) => {
             return 409;
         case 'Not a member of this ping':
             return 404;
+        case 'Failed to leave ping':
+            return 500;
         default:
             return 500;
     }
+};
+
+const sendError = (res, err) => {
+    const statusCode = getStatusCode(err.message);
+    const message = statusCode === 500 ? 'Internal server error' : err.message;
+    return res.status(statusCode).json({ message });
 };
 
 const createPing = async (req, res) => {
@@ -46,7 +54,7 @@ const createPing = async (req, res) => {
         });
         res.status(201).json(result);
     } catch (err) {
-        res.status(getStatusCode(err.message)).json({ message: err.message });
+        sendError(res, err);
     }
 };
 
@@ -61,7 +69,7 @@ const joinPing = async (req, res) => {
         });
         res.status(200).json(result);
     } catch (err) {
-        res.status(getStatusCode(err.message)).json({ message: err.message });
+        sendError(res, err);
     }
 };
 
@@ -70,7 +78,7 @@ const getActivePing = async (req, res) => {
         const result = await pingService.getActivePing();
         res.status(200).json(result);
     } catch (err) {
-        res.status(getStatusCode(err.message)).json({ message: err.message });
+        sendError(res, err);
     }
 };
 
@@ -84,7 +92,7 @@ const leavePing = async (req, res) => {
         });
         res.status(200).json(result);
     } catch (err) {
-        res.status(getStatusCode(err.message)).json({ message: err.message });
+        sendError(res, err);
     }
 };
 module.exports = { createPing, joinPing, getActivePing, leavePing };

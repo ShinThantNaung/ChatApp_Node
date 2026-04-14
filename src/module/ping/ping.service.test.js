@@ -181,7 +181,7 @@ test('leavePing throws when member is not part of ping', async () => {
     const prismaMock = {
         ping: {},
         pingMember: {
-            findUnique: async () => null,
+            findFirst: async () => null,
             delete: async () => {
                 throw new Error('delete should not be called');
             },

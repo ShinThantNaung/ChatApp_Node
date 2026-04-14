@@ -184,12 +184,34 @@ const getActivePing = async () => {
 };
 
 const leavePing = async (pingId, userId) => {
-    const member = await prisma.pingMember.findUnique({ where: { pingId_userId: { pingId, userId } } });
-    if (!member) {
-        throw new Error('Not a member of this ping');
+    if (!pingId) {
+        throw new Error('Ping id is required');
     }
-    await prisma.pingMember.delete({ where: { id: member.id } });
-    return { message: 'Left ping successfully' };
+    if (!userId) {
+        throw new Error('Authentication required');
+    }
+
+    try {
+        const member = await prisma.pingMember.findFirst({
+            where: {
+                pingId,
+                userId,
+            },
+            select: { id: true },
+        });
+
+        if (!member) {
+            throw new Error('Not a member of this ping');
+        }
+
+        await prisma.pingMember.delete({ where: { id: member.id } });
+        return { message: 'Left ping successfully' };
+    } catch (err) {
+        if (err.message === 'Not a member of this ping') {
+            throw err;
+        }
+        throw new Error('Failed to leave ping');
+    }
 };
 
 module.exports = { createPing, joinPing, getActivePing, leavePing };
