@@ -20,6 +20,7 @@
   "scripts": {
     "test": "npm run test:ping",
     "test:ping": "node --test src/module/ping/ping.service.test.js src/module/ping/ping.controller.test.js",
+    "test:guild": "node --test src/module/guild/guild.service.test.js src/module/guild/guild.controller.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "prisma:generate": "prisma generate",
