@@ -24,6 +24,8 @@ model User {
   members   PingMember[]
   messages  Message[]
   stats     UserStats?
+  guilds    Guild[]
+  guildMembers GuildMember[]
 }
 
 model Ping {
@@ -96,4 +98,26 @@ model UserStats {
   winRate     Float
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model GuildMember {
+  id      String @id @default(uuid())
+  userId  String
+  guildId String
+  role    String // "leader", "member"
+
+  user  User  @relation(fields: [userId], references: [id])
+  guild Guild @relation(fields: [guildId], references: [id])
+
+  @@unique([userId, guildId])
+}
+
+model Guild {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  leaderId        String
+  members         GuildMember[]
+  createdAt       DateTime @default(now())
+
+  leader  User @relation(fields: [leaderId], references: [id])
 }
