@@ -2,6 +2,7 @@ let io;
 const { socketAuth } = require('./sockets.middleware');
 const pingHandler = require('./handlers/ping.handler');
 const chatHandler = require('./handlers/chat.handler');
+const guildHandler = require('./handlers/guild.handler');
 
 const initSocket = (server) => {
     io = require('socket.io')(server, {
@@ -17,6 +18,7 @@ const initSocket = (server) => {
         console.log('New client connected: ' + socket.id);
 
         pingHandler(io, socket);
+        guildHandler(io, socket);
         chatHandler(io, socket);
     });
 };

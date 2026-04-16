@@ -1,5 +1,27 @@
 const guildServie = require('./guild.service')
 
+const syncGuildRoomsForUsers = async (userIds = []) => {
+    const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+    if (uniqueUserIds.length === 0) {
+        return;
+    }
+
+    try {
+        const { getIo } = require('../../sockets');
+        const { syncGuildRoomsForSocket, toUserRoom } = require('../../sockets/handlers/guild.handler');
+        const io = getIo();
+
+        await Promise.all(
+            uniqueUserIds.map(async (userId) => {
+                const sockets = await io.in(toUserRoom(userId)).fetchSockets();
+                await Promise.all(sockets.map((socket) => syncGuildRoomsForSocket(socket)));
+            })
+        );
+    } catch (err) {
+        // Socket server can be unavailable during isolated unit tests.
+    }
+};
+
 const getStatusCode = (message) => {
     switch (message) {
         case 'Guild name already exists':
@@ -53,6 +75,7 @@ const sendError = (res, err) => {
 const createGuild = async (req, res) => {
     try {
         const result = await guildServie.createGuild(req.body, req.user?.id);
+        await syncGuildRoomsForUsers([req.user?.id]);
         res.status(201).json(result);
     } catch (err) {
         sendError(res, err);
@@ -63,6 +86,7 @@ const joinGuild = async (req, res) => {
     try {
         const { guildId } = req.body;
         const result = await guildServie.joinGuild(guildId, req.user?.id);
+        await syncGuildRoomsForUsers([req.user?.id]);
         res.status(200).json(result);
     } catch (err) {
         sendError(res, err);
@@ -73,6 +97,7 @@ const leaveGuild = async (req, res) => {
     try {
         const { guildId } = req.body;
         await guildServie.leaveGuild(guildId, req.user?.id);
+        await syncGuildRoomsForUsers([req.user?.id]);
         res.status(200).json({ message: 'Successfully left the guild' });
     }
     catch (err) {
@@ -92,7 +117,8 @@ const getActiveGuild = async (req, res) => {
 const deleteGuild = async (req, res) => {
     try {
         const { guildId } = req.body;
-        await guildServie.deleteGuild(guildId, req.user?.id);
+        const result = await guildServie.deleteGuild(guildId, req.user?.id);
+        await syncGuildRoomsForUsers(result.memberIds || [req.user?.id]);
         res.status(200).json({ message: 'Successfully deleted the guild' });
     } catch (err) {
         sendError(res, err);

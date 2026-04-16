@@ -55,6 +55,36 @@ const getGuildById = async (guildId) => {
     return guild;
 };
 
+const getActiveGuild = async () => {
+    const activeGuild = await prisma.guild.findMany({
+        include: {
+            leader: {
+                select: {
+                    id: true,
+                    username: true,
+                    avatarUrl: true,
+                },
+            },
+            members: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            username: true,
+                            avatarUrl: true,
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+
+    return activeGuild;
+};
+
 const joinGuild = async (guildId, userId) => {
     if (!guildId) {
         throw new Error('Guild id is required');
@@ -123,6 +153,13 @@ const deleteGuild = async (guildId, userId) => {
     }
     const guild = await prisma.guild.findUnique({
         where: { id: guildId },
+        include: {
+            members: {
+                select: {
+                    userId: true,
+                },
+            },
+        },
     });
     if (!guild) {
         throw new Error('Guild not found');
@@ -130,15 +167,28 @@ const deleteGuild = async (guildId, userId) => {
     if (guild.leaderId !== userId) {
         throw new Error('Only the guild leader can delete the guild');
     }
-    await prisma.guild.delete({
-        where: { id: guildId },
-    });
-    return { message: 'Guild deleted successfully' };
+
+    const memberIds = (guild.members || []).map((member) => member.userId);
+
+    if (typeof prisma.$transaction === 'function') {
+        await prisma.$transaction([
+            prisma.guildMember.deleteMany({ where: { guildId } }),
+            prisma.guild.delete({ where: { id: guildId } }),
+        ]);
+    } else {
+        if (prisma.guildMember?.deleteMany) {
+            await prisma.guildMember.deleteMany({ where: { guildId } });
+        }
+        await prisma.guild.delete({ where: { id: guildId } });
+    }
+
+    return { message: 'Guild deleted successfully', memberIds };
 }
 
 module.exports = {
     createGuild,
     getGuildById,
+    getActiveGuild,
     joinGuild,
     leaveGuild,
     deleteGuild,

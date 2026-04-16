@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticate } = require('../auth/Middleware/auth.middleware');
+const { authenticate } = require('../auth/middleware/auth.middleware');
 const { joinPing, createPing, getActivePing, leavePing,deletePing } = require('./ping.controller');
 const router = express.Router();
 

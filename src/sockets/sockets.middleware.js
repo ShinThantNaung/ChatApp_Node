@@ -25,7 +25,7 @@ const socketAuth = async (socket, next) => {
 		const decoded = verifyToken(token);
 		const user = await prisma.user.findUnique({
 			where: { id: decoded.id },
-			select: { id: true, username: true, email: true },
+			select: { id: true, username: true, email: true, avatarUrl: true },
 		});
 
 		if (!user) {
@@ -33,6 +33,7 @@ const socketAuth = async (socket, next) => {
 		}
 
 		socket.user = user;
+		socket.data.user = user;
 		next();
 	} catch (err) {
 		return next(new Error('Authentication error: Invalid token'));

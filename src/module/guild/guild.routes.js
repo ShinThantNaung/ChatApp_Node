@@ -1,20 +1,14 @@
 const express = require('express');
-const { authenticate,authorize } = require('../auth/Middleware/auth.middleware')
+const { authenticate } = require('../auth/middleware/auth.middleware');
 const { createGuild, joinGuild, getActiveGuild, leaveGuild, deleteGuild} = require('./guild.controller');
 const router = express.Router();
 
-const auth = () =>{
-    authenticate;
-}
-const authAdmin = () =>{
-    authenticate;
-    authorize('admin');
-}
-router.get('/getActivePing',auth,getActiveGuild);
-router.post('/createGuild',auth,createGuild);
-router.post('/joinGuild',auth,joinGuild);
-router.post('/leaveGuild',auth,leaveGuild);
-router.delete('/deleteGuild',authAdmin,deleteGuild);
+router.get('/getActiveGuild', authenticate, getActiveGuild);
+router.get('/getActivePing', authenticate, getActiveGuild);
+router.post('/createGuild', authenticate, createGuild);
+router.post('/joinGuild', authenticate, joinGuild);
+router.post('/leaveGuild', authenticate, leaveGuild);
+router.delete('/deleteGuild', authenticate, deleteGuild);
 
 
 module.exports = router;
