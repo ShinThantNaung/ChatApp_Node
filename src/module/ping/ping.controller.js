@@ -30,6 +30,7 @@ const getStatusCode = (message) => {
         case 'Creator role must be one of the ping roles':
             return 422;
         case 'Already joined this ping':
+        case 'User is already in another ping':
         case 'Ping is full':
         case 'No available roles':
             return 409;

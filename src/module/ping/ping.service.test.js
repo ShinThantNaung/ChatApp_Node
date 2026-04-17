@@ -42,7 +42,9 @@ test('createPing creates ping with trimmed title and creator as first member', a
         role: {
             findMany: async () => [{ id: 'top', name: 'Top' }],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -74,7 +76,9 @@ test('createPing throws when provided roleIds do not exist', async () => {
         role: {
             findMany: async () => [],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -105,7 +109,9 @@ test('createPing accepts role names and resolves them to role ids', async () => 
                 { id: 'role-jungle-id', name: 'jungle' },
             ],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -141,7 +147,9 @@ test('createPing allows creator to choose role by creatorRoleId', async () => {
                 { id: 'role-mid-id', name: 'mid' },
             ],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -176,7 +184,9 @@ test('createPing allows creator to choose role by creatorRoleName', async () => 
                 { id: 'role-support-id', name: 'support' },
             ],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -210,7 +220,9 @@ test('createPing throws when creatorRoleId is not in ping roles', async () => {
                 { id: 'role-jungle-id', name: 'jungle' },
             ],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -240,7 +252,9 @@ test('createPing throws when role payload misses role identifier', async () => {
         role: {
             findMany: async () => [],
         },
-        pingMember: {},
+        pingMember: {
+            findFirst: async () => null,
+        },
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -276,6 +290,7 @@ test('joinPing assigns first available role', async () => {
             },
         },
         pingMember: {
+            findFirst: async () => null,
             create: async ({ data }) => ({ id: 'member-2', ...data }),
         },
     };
@@ -321,6 +336,7 @@ test('joinPing prevents overflow when two users join at the same time', async ()
             },
         },
         pingMember: {
+            findFirst: async () => null,
             create: async ({ data }) => {
                 const newMember = { id: `member-${state.members.length + 1}`, ...data };
                 state.members.push(newMember);
@@ -376,6 +392,7 @@ test('joinPing closes ping when final required role is filled', async () => {
             },
         },
         pingMember: {
+            findFirst: async () => null,
             create: async ({ data }) => ({ id: 'member-2', ...data }),
         },
     };
@@ -390,6 +407,71 @@ test('joinPing closes ping when final required role is filled', async () => {
     assert.equal(member.roleId, 'support');
     assert.equal(updates.length, 1);
     assert.equal(updates[0].data.status, 'closed');
+});
+
+test('createPing throws when creator is already in another ping', async () => {
+    const prismaMock = {
+        ping: {
+            findFirst: async () => null,
+            create: async () => {
+                throw new Error('create should not be called');
+            },
+        },
+        role: {
+            findMany: async () => [{ id: 'role-top-id', name: 'top' }],
+        },
+        pingMember: {
+            findFirst: async () => ({ pingId: 'existing-ping-id' }),
+        },
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.createPing({
+            title: 'Cannot Create',
+            gameMode: 'rank',
+            maxPlayers: 5,
+            roles: [{ roleId: 'role-top-id', slots: 1 }],
+        }, 'user-1'),
+        /User is already in another ping/
+    );
+});
+
+test('joinPing throws when user is already in another ping', async () => {
+    const tx = {
+        $queryRaw: async () => [{ id: 'ping-1' }],
+        ping: {
+            findUnique: async () => ({
+                id: 'ping-1',
+                maxPlayers: 3,
+                status: 'open',
+                members: [{ userId: 'creator', roleId: 'jungle' }],
+                roles: [
+                    { roleId: 'jungle', slots: 1 },
+                    { roleId: 'support', slots: 2 },
+                ],
+            }),
+            update: async () => {
+                throw new Error('update should not be called');
+            },
+        },
+        pingMember: {
+            findFirst: async () => ({ pingId: 'other-ping-id' }),
+            create: async () => {
+                throw new Error('create should not be called');
+            },
+        },
+    };
+
+    const prismaMock = {
+        $transaction: async (callback) => callback(tx),
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.joinPing('ping-1', 'user-2'),
+        /User is already in another ping/
+    );
 });
 
 test('leavePing throws when member is not part of ping', async () => {

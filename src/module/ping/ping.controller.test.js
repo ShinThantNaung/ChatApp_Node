@@ -119,6 +119,29 @@ test('createPing maps invalid creator role selection to 422', async () => {
     assert.equal(res.payload.message, 'Creator role must be one of the ping roles');
 });
 
+test('createPing maps existing membership to 409', async () => {
+    const serviceMock = {
+        createPing: async () => {
+            throw new Error('User is already in another ping');
+        },
+    };
+    const controller = loadController({
+        serviceMock,
+        ioMock: { emit: () => {} },
+    });
+
+    const req = {
+        body: { title: 'Solo Queue' },
+        user: { id: 'user-1' },
+    };
+    const res = makeRes();
+
+    await controller.createPing(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.payload.message, 'User is already in another ping');
+});
+
 test('leavePing still returns success when socket is unavailable', async () => {
     const serviceMock = {
         leavePing: async () => ({ message: 'Left ping successfully' }),

@@ -133,6 +133,14 @@ const createPing = async (data, userId) => {
         throw new Error('Ping already exists');
     }
 
+    const existingMembership = await prisma.pingMember.findFirst({
+        where: { userId },
+        select: { pingId: true },
+    });
+    if (existingMembership) {
+        throw new Error('User is already in another ping');
+    }
+
     const newPing = await prisma.ping.create({ 
         data: {
             title: title.trim(),
@@ -193,6 +201,17 @@ const joinPing = async (pingId, userId) => {
                 const isMember = ping.members.some((m) => m.userId === userId);
                 if (isMember) {
                     throw new Error('Already joined this ping');
+                }
+
+                const existingMembership = await tx.pingMember.findFirst({
+                    where: {
+                        userId,
+                        pingId: { not: pingId },
+                    },
+                    select: { pingId: true },
+                });
+                if (existingMembership) {
+                    throw new Error('User is already in another ping');
                 }
 
                 if (ping.members.length >= ping.maxPlayers || !hasAvailableRoleSlot(ping.roles, ping.members)) {
