@@ -4,6 +4,20 @@ const MAX_JOIN_RETRIES = 2;
 
 const isRetryableJoinConflict = (err) => err?.code === 'P2034';
 
+const hasAvailableRoleSlot = (roles, members) => {
+    return roles.some((r) => {
+        const currentRoleCount = members.filter((m) => m.roleId === r.roleId).length;
+        return currentRoleCount < r.slots;
+    });
+};
+
+const getNextPingStatus = (ping, members) => {
+    const isMaxPlayersReached = members.length >= ping.maxPlayers;
+    const areRoleSlotsFull = !hasAvailableRoleSlot(ping.roles, members);
+
+    return isMaxPlayersReached || areRoleSlotsFull ? 'closed' : 'open';
+};
+
 const createPing = async (data, userId) => {
     if (!data) {
         throw new Error('Ping payload is required');
@@ -154,8 +168,19 @@ const joinPing = async (pingId, userId) => {
                     throw new Error('Already joined this ping');
                 }
 
-                if (ping.members.length >= ping.maxPlayers) {
-                    throw new Error('Ping is full');
+                if (ping.members.length >= ping.maxPlayers || !hasAvailableRoleSlot(ping.roles, ping.members)) {
+                    if (ping.status !== 'closed') {
+                        await tx.ping.update({
+                            where: { id: pingId },
+                            data: { status: 'closed' },
+                        });
+                    }
+
+                    if (ping.members.length >= ping.maxPlayers) {
+                        throw new Error('Ping is full');
+                    }
+
+                    throw new Error('No available roles');
                 }
 
                 const role = ping.roles.find((r) => {
@@ -167,7 +192,7 @@ const joinPing = async (pingId, userId) => {
                     throw new Error('No available roles');
                 }
 
-                return tx.pingMember.create({
+                const member = await tx.pingMember.create({
                     data: {
                         userId,
                         pingId,
@@ -175,6 +200,16 @@ const joinPing = async (pingId, userId) => {
                         status: 'joined',
                     },
                 });
+
+                const nextStatus = getNextPingStatus(ping, [...ping.members, { roleId: role.roleId }]);
+                if (ping.status !== nextStatus) {
+                    await tx.ping.update({
+                        where: { id: pingId },
+                        data: { status: nextStatus },
+                    });
+                }
+
+                return member;
             });
         } catch (err) {
             lastError = err;
@@ -219,22 +254,38 @@ const leavePing = async (pingId, userId) => {
     }
 
     try {
-        const member = await prisma.pingMember.findFirst({
-            where: {
-                pingId,
-                userId,
-            },
-            select: { id: true },
+        return await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM Ping WHERE id = ${pingId} FOR UPDATE`;
+
+            const ping = await tx.ping.findUnique({
+                where: { id: pingId },
+                include: { members: true, roles: true },
+            });
+
+            if (!ping) {
+                throw new Error('Ping does not exist');
+            }
+
+            const member = ping.members.find((m) => m.userId === userId);
+            if (!member) {
+                throw new Error('Not a member of this ping');
+            }
+
+            await tx.pingMember.delete({ where: { id: member.id } });
+
+            const remainingMembers = ping.members.filter((m) => m.id !== member.id);
+            const nextStatus = getNextPingStatus(ping, remainingMembers);
+            if (ping.status !== nextStatus) {
+                await tx.ping.update({
+                    where: { id: pingId },
+                    data: { status: nextStatus },
+                });
+            }
+
+            return { message: 'Left ping successfully' };
         });
-
-        if (!member) {
-            throw new Error('Not a member of this ping');
-        }
-
-        await prisma.pingMember.delete({ where: { id: member.id } });
-        return { message: 'Left ping successfully' };
     } catch (err) {
-        if (err.message === 'Not a member of this ping') {
+        if (err.message === 'Not a member of this ping' || err.message === 'Ping does not exist') {
             throw err;
         }
         throw new Error('Failed to leave ping');

@@ -152,18 +152,24 @@ test('createPing throws when role payload misses role identifier', async () => {
 });
 
 test('joinPing assigns first available role', async () => {
+    const updates = [];
     const tx = {
         $queryRaw: async () => [{ id: 'ping-1' }],
         ping: {
             findUnique: async () => ({
                 id: 'ping-1',
                 maxPlayers: 3,
+                status: 'open',
                 members: [{ userId: 'creator', roleId: 'jungle' }],
                 roles: [
                     { roleId: 'jungle', slots: 1 },
                     { roleId: 'support', slots: 2 },
                 ],
             }),
+            update: async (args) => {
+                updates.push(args);
+                return args;
+            },
         },
         pingMember: {
             create: async ({ data }) => ({ id: 'member-2', ...data }),
@@ -180,12 +186,14 @@ test('joinPing assigns first available role', async () => {
     assert.equal(member.userId, 'user-2');
     assert.equal(member.pingId, 'ping-1');
     assert.equal(member.roleId, 'support');
+    assert.equal(updates.length, 0);
 });
 
 test('joinPing prevents overflow when two users join at the same time', async () => {
     const state = {
         pingId: 'ping-1',
         maxPlayers: 2,
+        status: 'open',
         members: [{ id: 'member-1', userId: 'creator', roleId: 'jungle', status: 'joined' }],
         roles: [
             { roleId: 'jungle', slots: 1 },
@@ -199,9 +207,14 @@ test('joinPing prevents overflow when two users join at the same time', async ()
             findUnique: async () => ({
                 id: state.pingId,
                 maxPlayers: state.maxPlayers,
+                status: state.status,
                 members: [...state.members],
                 roles: [...state.roles],
             }),
+            update: async ({ data }) => {
+                state.status = data.status;
+                return { id: state.pingId, status: state.status };
+            },
         },
         pingMember: {
             create: async ({ data }) => {
@@ -235,17 +248,70 @@ test('joinPing prevents overflow when two users join at the same time', async ()
     assert.equal(rejected.length, 1);
     assert.match(rejected[0].reason.message, /Ping is full|No available roles/);
     assert.equal(state.members.length, 2);
+    assert.equal(state.status, 'closed');
+});
+
+test('joinPing closes ping when final required role is filled', async () => {
+    const updates = [];
+    const tx = {
+        $queryRaw: async () => [{ id: 'ping-1' }],
+        ping: {
+            findUnique: async () => ({
+                id: 'ping-1',
+                maxPlayers: 5,
+                status: 'open',
+                members: [{ userId: 'creator', roleId: 'jungle' }],
+                roles: [
+                    { roleId: 'jungle', slots: 1 },
+                    { roleId: 'support', slots: 1 },
+                ],
+            }),
+            update: async (args) => {
+                updates.push(args);
+                return args;
+            },
+        },
+        pingMember: {
+            create: async ({ data }) => ({ id: 'member-2', ...data }),
+        },
+    };
+
+    const prismaMock = {
+        $transaction: async (callback) => callback(tx),
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const member = await service.joinPing('ping-1', 'user-2');
+
+    assert.equal(member.roleId, 'support');
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].data.status, 'closed');
 });
 
 test('leavePing throws when member is not part of ping', async () => {
-    const prismaMock = {
-        ping: {},
+    const tx = {
+        $queryRaw: async () => [{ id: 'ping-1' }],
+        ping: {
+            findUnique: async () => ({
+                id: 'ping-1',
+                maxPlayers: 3,
+                status: 'open',
+                members: [{ id: 'member-1', userId: 'someone-else', roleId: 'jungle', status: 'joined' }],
+                roles: [{ roleId: 'jungle', slots: 2 }],
+            }),
+            update: async () => {
+                throw new Error('update should not be called');
+            },
+        },
         pingMember: {
-            findFirst: async () => null,
             delete: async () => {
                 throw new Error('delete should not be called');
             },
         },
+    };
+
+    const prismaMock = {
+        $transaction: async (callback) => callback(tx),
     };
     const service = loadServiceWithPrismaMock(prismaMock);
 
@@ -253,6 +319,46 @@ test('leavePing throws when member is not part of ping', async () => {
         () => service.leavePing('ping-1', 'user-404'),
         /Not a member of this ping/
     );
+});
+
+test('leavePing reopens ping when a member leaves and slots are available again', async () => {
+    const updates = [];
+    const tx = {
+        $queryRaw: async () => [{ id: 'ping-1' }],
+        ping: {
+            findUnique: async () => ({
+                id: 'ping-1',
+                maxPlayers: 2,
+                status: 'closed',
+                members: [
+                    { id: 'member-1', userId: 'creator', roleId: 'jungle', status: 'joined' },
+                    { id: 'member-2', userId: 'user-2', roleId: 'support', status: 'joined' },
+                ],
+                roles: [
+                    { roleId: 'jungle', slots: 1 },
+                    { roleId: 'support', slots: 1 },
+                ],
+            }),
+            update: async (args) => {
+                updates.push(args);
+                return args;
+            },
+        },
+        pingMember: {
+            delete: async () => ({ id: 'member-2' }),
+        },
+    };
+
+    const prismaMock = {
+        $transaction: async (callback) => callback(tx),
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const result = await service.leavePing('ping-1', 'user-2');
+
+    assert.equal(result.message, 'Left ping successfully');
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].data.status, 'open');
 });
 
 test('deletePing deletes ping when requester is creator', async () => {
