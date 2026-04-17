@@ -1,5 +1,9 @@
 const prisma = require('./ping.config');
 
+const MAX_JOIN_RETRIES = 2;
+
+const isRetryableJoinConflict = (err) => err?.code === 'P2034';
+
 const createPing = async (data, userId) => {
     if (!data) {
         throw new Error('Ping payload is required');
@@ -128,36 +132,59 @@ const joinPing = async (pingId, userId) => {
         throw new Error('Authentication required');
     }
 
-    const ping = await prisma.ping.findUnique({ where: { id: pingId }, include: { members: true, roles: true } });
-    if (!ping) {
-        throw new Error('Ping does not exist');
-    }
-    const isMember = ping.members.some(m => m.userId === userId);
-    if (isMember) {
-        throw new Error('Already joined this ping');
-    }
-    if (ping.members.length >= ping.maxPlayers) {
-        throw new Error('Ping is full');
+    let lastError;
+
+    for (let attempt = 0; attempt < MAX_JOIN_RETRIES; attempt += 1) {
+        try {
+            return await prisma.$transaction(async (tx) => {
+                // Lock this ping row so concurrent joins for the same ping are serialized.
+                await tx.$queryRaw`SELECT id FROM Ping WHERE id = ${pingId} FOR UPDATE`;
+
+                const ping = await tx.ping.findUnique({
+                    where: { id: pingId },
+                    include: { members: true, roles: true },
+                });
+
+                if (!ping) {
+                    throw new Error('Ping does not exist');
+                }
+
+                const isMember = ping.members.some((m) => m.userId === userId);
+                if (isMember) {
+                    throw new Error('Already joined this ping');
+                }
+
+                if (ping.members.length >= ping.maxPlayers) {
+                    throw new Error('Ping is full');
+                }
+
+                const role = ping.roles.find((r) => {
+                    const currentRoleCount = ping.members.filter((m) => m.roleId === r.roleId).length;
+                    return currentRoleCount < r.slots;
+                });
+
+                if (!role) {
+                    throw new Error('No available roles');
+                }
+
+                return tx.pingMember.create({
+                    data: {
+                        userId,
+                        pingId,
+                        roleId: role.roleId,
+                        status: 'joined',
+                    },
+                });
+            });
+        } catch (err) {
+            lastError = err;
+            if (!isRetryableJoinConflict(err) || attempt === MAX_JOIN_RETRIES - 1) {
+                throw err;
+            }
+        }
     }
 
-    const role = ping.roles.find((r) => {
-        const currentRoleCount = ping.members.filter((m) => m.roleId === r.roleId).length;
-        return currentRoleCount < r.slots;
-    });
-
-    if (!role) {
-        throw new Error('No available roles');
-    }
-
-    const member = await prisma.pingMember.create({
-        data: {
-            userId,
-            pingId,
-            roleId: role.roleId,
-            status: 'joined',
-        },
-    });
-    return member;
+    throw lastError;
 };
 
 const getActivePing = async () => {

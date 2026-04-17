@@ -152,7 +152,8 @@ test('createPing throws when role payload misses role identifier', async () => {
 });
 
 test('joinPing assigns first available role', async () => {
-    const prismaMock = {
+    const tx = {
+        $queryRaw: async () => [{ id: 'ping-1' }],
         ping: {
             findUnique: async () => ({
                 id: 'ping-1',
@@ -168,6 +169,10 @@ test('joinPing assigns first available role', async () => {
             create: async ({ data }) => ({ id: 'member-2', ...data }),
         },
     };
+
+    const prismaMock = {
+        $transaction: async (callback) => callback(tx),
+    };
     const service = loadServiceWithPrismaMock(prismaMock);
 
     const member = await service.joinPing('ping-1', 'user-2');
@@ -175,6 +180,61 @@ test('joinPing assigns first available role', async () => {
     assert.equal(member.userId, 'user-2');
     assert.equal(member.pingId, 'ping-1');
     assert.equal(member.roleId, 'support');
+});
+
+test('joinPing prevents overflow when two users join at the same time', async () => {
+    const state = {
+        pingId: 'ping-1',
+        maxPlayers: 2,
+        members: [{ id: 'member-1', userId: 'creator', roleId: 'jungle', status: 'joined' }],
+        roles: [
+            { roleId: 'jungle', slots: 1 },
+            { roleId: 'support', slots: 1 },
+        ],
+    };
+
+    const tx = {
+        $queryRaw: async () => [{ id: state.pingId }],
+        ping: {
+            findUnique: async () => ({
+                id: state.pingId,
+                maxPlayers: state.maxPlayers,
+                members: [...state.members],
+                roles: [...state.roles],
+            }),
+        },
+        pingMember: {
+            create: async ({ data }) => {
+                const newMember = { id: `member-${state.members.length + 1}`, ...data };
+                state.members.push(newMember);
+                return newMember;
+            },
+        },
+    };
+
+    let queue = Promise.resolve();
+    const prismaMock = {
+        $transaction: async (callback) => {
+            const run = queue.then(() => callback(tx));
+            queue = run.catch(() => undefined);
+            return run;
+        },
+    };
+
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const [first, second] = await Promise.allSettled([
+        service.joinPing('ping-1', 'user-2'),
+        service.joinPing('ping-1', 'user-3'),
+    ]);
+
+    const fulfilled = [first, second].filter((r) => r.status === 'fulfilled');
+    const rejected = [first, second].filter((r) => r.status === 'rejected');
+
+    assert.equal(fulfilled.length, 1);
+    assert.equal(rejected.length, 1);
+    assert.match(rejected[0].reason.message, /Ping is full|No available roles/);
+    assert.equal(state.members.length, 2);
 });
 
 test('leavePing throws when member is not part of ping', async () => {
