@@ -96,6 +96,29 @@ test('joinPing maps domain error to 409', async () => {
     assert.equal(res.payload.message, 'Already joined this ping');
 });
 
+test('createPing maps invalid creator role selection to 422', async () => {
+    const serviceMock = {
+        createPing: async () => {
+            throw new Error('Creator role must be one of the ping roles');
+        },
+    };
+    const controller = loadController({
+        serviceMock,
+        ioMock: { emit: () => {} },
+    });
+
+    const req = {
+        body: { title: 'Solo Queue' },
+        user: { id: 'user-1' },
+    };
+    const res = makeRes();
+
+    await controller.createPing(req, res);
+
+    assert.equal(res.statusCode, 422);
+    assert.equal(res.payload.message, 'Creator role must be one of the ping roles');
+});
+
 test('leavePing still returns success when socket is unavailable', async () => {
     const serviceMock = {
         leavePing: async () => ({ message: 'Left ping successfully' }),

@@ -27,6 +27,7 @@ const getStatusCode = (message) => {
         case 'At least one role is required':
         case 'Each role must include roleId or role name, and slots > 0':
         case 'One or more roles are invalid':
+        case 'Creator role must be one of the ping roles':
             return 422;
         case 'Already joined this ping':
         case 'Ping is full':

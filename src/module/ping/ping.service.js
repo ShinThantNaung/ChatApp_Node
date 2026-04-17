@@ -26,7 +26,16 @@ const createPing = async (data, userId) => {
         throw new Error('Authentication required');
     }
 
-    const { title, gameMode, urgency = false, maxPlayers, status = 'open', roles = [] } = data;
+    const {
+        title,
+        gameMode,
+        urgency = false,
+        maxPlayers,
+        status = 'open',
+        roles = [],
+        creatorRoleId,
+        creatorRoleName,
+    } = data;
     if (!title || title.trim() === '') {
         throw new Error('Ping name is required');
     }
@@ -101,6 +110,24 @@ const createPing = async (data, userId) => {
         throw new Error('One or more roles are invalid');
     }
 
+    const availableRoleIds = new Set(resolvedRoles.map((r) => r.roleId));
+    const normalizedCreatorRoleId = typeof creatorRoleId === 'string' ? creatorRoleId.trim() : '';
+    const normalizedCreatorRoleName = typeof creatorRoleName === 'string' ? creatorRoleName.trim().toLowerCase() : '';
+
+    let selectedCreatorRoleId = resolvedRoles[0].roleId;
+    if (normalizedCreatorRoleId) {
+        if (!availableRoleIds.has(normalizedCreatorRoleId)) {
+            throw new Error('Creator role must be one of the ping roles');
+        }
+        selectedCreatorRoleId = normalizedCreatorRoleId;
+    } else if (normalizedCreatorRoleName) {
+        const mappedRoleId = roleByName.get(normalizedCreatorRoleName);
+        if (!mappedRoleId || !availableRoleIds.has(mappedRoleId)) {
+            throw new Error('Creator role must be one of the ping roles');
+        }
+        selectedCreatorRoleId = mappedRoleId;
+    }
+
     const existingPing = await prisma.ping.findFirst({ where: { title } });
     if (existingPing) {
         throw new Error('Ping already exists');
@@ -125,7 +152,7 @@ const createPing = async (data, userId) => {
             members: {
                 create: {
                     userId,
-                    roleId: resolvedRoles[0].roleId,
+                    roleId: selectedCreatorRoleId,
                     status: 'joined',
                 },
             },

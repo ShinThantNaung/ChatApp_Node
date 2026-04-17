@@ -125,6 +125,110 @@ test('createPing accepts role names and resolves them to role ids', async () => 
     assert.equal(createArgs[0].data.members.create.roleId, 'role-mid-id');
 });
 
+test('createPing allows creator to choose role by creatorRoleId', async () => {
+    const createArgs = [];
+    const prismaMock = {
+        ping: {
+            findFirst: async () => null,
+            create: async (args) => {
+                createArgs.push(args);
+                return { id: 'ping-3', ...args.data };
+            },
+        },
+        role: {
+            findMany: async () => [
+                { id: 'role-top-id', name: 'top' },
+                { id: 'role-mid-id', name: 'mid' },
+            ],
+        },
+        pingMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const result = await service.createPing({
+        title: 'Pick My Lane',
+        gameMode: 'rank',
+        maxPlayers: 5,
+        creatorRoleId: 'role-mid-id',
+        roles: [
+            { roleId: 'role-top-id', slots: 1 },
+            { roleId: 'role-mid-id', slots: 1 },
+        ],
+    }, 'user-1');
+
+    assert.equal(result.id, 'ping-3');
+    assert.equal(createArgs[0].data.members.create.roleId, 'role-mid-id');
+});
+
+test('createPing allows creator to choose role by creatorRoleName', async () => {
+    const createArgs = [];
+    const prismaMock = {
+        ping: {
+            findFirst: async () => null,
+            create: async (args) => {
+                createArgs.push(args);
+                return { id: 'ping-4', ...args.data };
+            },
+        },
+        role: {
+            findMany: async () => [
+                { id: 'role-jungle-id', name: 'jungle' },
+                { id: 'role-support-id', name: 'support' },
+            ],
+        },
+        pingMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    const result = await service.createPing({
+        title: 'Pick by Name',
+        gameMode: 'rank',
+        maxPlayers: 5,
+        creatorRoleName: 'Support',
+        roles: [
+            { roleName: 'jungle', slots: 1 },
+            { roleName: 'support', slots: 1 },
+        ],
+    }, 'user-1');
+
+    assert.equal(result.id, 'ping-4');
+    assert.equal(createArgs[0].data.members.create.roleId, 'role-support-id');
+});
+
+test('createPing throws when creatorRoleId is not in ping roles', async () => {
+    const prismaMock = {
+        ping: {
+            findFirst: async () => null,
+            create: async () => {
+                throw new Error('create should not be called');
+            },
+        },
+        role: {
+            findMany: async () => [
+                { id: 'role-top-id', name: 'top' },
+                { id: 'role-mid-id', name: 'mid' },
+                { id: 'role-jungle-id', name: 'jungle' },
+            ],
+        },
+        pingMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.createPing({
+            title: 'Bad Creator Role',
+            gameMode: 'rank',
+            maxPlayers: 5,
+            creatorRoleId: 'role-jungle-id',
+            roles: [
+                { roleId: 'role-top-id', slots: 1 },
+                { roleId: 'role-mid-id', slots: 1 },
+            ],
+        }, 'user-1'),
+        /Creator role must be one of the ping roles/
+    );
+});
+
 test('createPing throws when role payload misses role identifier', async () => {
     const prismaMock = {
         ping: {
