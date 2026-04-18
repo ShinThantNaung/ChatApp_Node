@@ -18,6 +18,7 @@ model User {
   email     String   @unique
   password  String
   avatarUrl String?
+  isEmailVerified Boolean @default(false)
   createdAt DateTime @default(now())
 
   pings     Ping[]
@@ -26,6 +27,17 @@ model User {
   stats     UserStats?
   guilds    Guild[]
   guildMembers GuildMember[]
+  emailVerification EmailVerification?
+}
+
+model EmailVerification {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  otpHash   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Ping {
