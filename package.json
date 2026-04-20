@@ -20,6 +20,7 @@
   "scripts": {
     "test": "npm run test:ping",
     "test:ping": "node --test src/module/ping/ping.service.test.js src/module/ping/ping.controller.test.js",
+    "test:mlbb": "node --test src/module/mlbbAcademy/mlbbAcademy.services.test.js src/module/mlbbAcademy/mlbbAcademy.controller.test.js",
     "test:sockets": "node --test src/sockets/sockets.middleware.test.js src/sockets/handlers/guild.handler.test.js src/sockets/handlers/chat.handler.test.js",
     "test:guild": "node --test src/module/guild/guild.service.test.js src/module/guild/guild.controller.test.js",
     "test:auth": "node --test src/module/auth/services/auth.services.test.js src/module/auth/controllers/auth.controller.test.js",
