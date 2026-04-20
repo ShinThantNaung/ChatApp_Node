@@ -5,7 +5,8 @@ const {
 	getHeroByName,
 	getHeroStatsById,
 	getHeroTrendsById,
-	getTopHeroesByLane 
+	getTopHeroesByLane,
+	getGlobalTopHero,
 } = require('./mlbbAcademy.controller');
 
 const router = express.Router();
@@ -15,5 +16,6 @@ router.get('/hero/:name', authenticate, getHeroByName);
 router.get('/hero/:id/stats', authenticate, getHeroStatsById);
 router.get('/hero/:id/trends', authenticate, getHeroTrendsById);
 router.get('/lanes/top-heroes', authenticate, getTopHeroesByLane);
+router.get('/heroes/top-global', authenticate, getGlobalTopHero);
 
 module.exports = router;

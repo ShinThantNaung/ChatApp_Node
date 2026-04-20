@@ -1,31 +1,46 @@
 const { getMlbbClient } = require('./mlbbAcademy.config');
 
 const getHeroes = async (params = {}) => {
+	if(Object.keys(params).length === 0) {
+		params = { limit: 132 }; // default to fetching 132 heroes if no params provided
+	}
 	const client = await getMlbbClient();
 	const heroes = await client.mlbb.getHeroes(params);
 	return heroes;
 };
 
 const getHeroByName = async (name) => {
+	if(name === undefined) {
+		throw new Error('Hero name parameter is required');
+	}
 	const client = await getMlbbClient();
 	const hero = await client.mlbb.getHero(name);
 	return hero;
 };
 
 const getHeroStatsById = async (id, params = {}) => {
+	if(id === undefined) {
+		throw new Error('Hero ID parameter is required');
+	}
 	const client = await getMlbbClient();
 	const stats = await client.mlbb.getHeroStats(Number(id), params);
 	return stats;
 };
 
 const getHeroTrendsById = async (id, params = {}) => {
+	if(id === undefined) {
+		throw new Error('Hero ID parameter is required');
+	}
 	const client = await getMlbbClient();
 	const trends = await client.mlbb.getHeroTrends(Number(id), params);
 	return trends;
 };
 
-const getTopHeroesByLane = async (role = 'mage', lane = 'mid') => {
+const getTopHeroesByLane = async (role, lane) => {
 	const client = await getMlbbClient();
+	if(role === undefined || lane === undefined) {
+		throw new Error('Role and lane query parameters are required');
+	}
 	
 	// Fetch mythic winrates sorted by win_rate
 	const ranksResponse = await client.mlbb.getHeroRanks({ rank: 'mythic', days: 7, sortField: 'win_rate' });
@@ -74,40 +89,47 @@ const getTopHeroesByLane = async (role = 'mage', lane = 'mid') => {
 	};
 };
 
+const getGlobalTopHero = async (params = {}) => {
+	const client = await getMlbbClient();
+
+	const rank = params?.rank || 'mythic';
+	const days = Number.isFinite(Number(params?.days)) ? Number(params.days) : 7;
+	const sortField = params?.sortField || 'win_rate';
+
+	const ranksResponse = await client.mlbb.getHeroRanks({ rank, days, sortField });
+	const records = ranksResponse?.data?.records || [];
+
+	if(!Array.isArray(records) || records.length === 0) {
+		throw new Error('No hero ranking data found');
+	}
+
+	const topRecord = records.reduce((best, current) => {
+		const bestRate = Number(best?.data?.main_hero_win_rate || 0);
+		const currentRate = Number(current?.data?.main_hero_win_rate || 0);
+		return currentRate > bestRate ? current : best;
+	}, records[0]);
+
+	const heroId = topRecord?.data?.main_heroid;
+	if(!heroId) {
+		throw new Error('Top hero data is unavailable');
+	}
+
+	return {
+		id: heroId,
+		name: topRecord?.data?.main_hero?.data?.name || 'Unknown',
+		role: topRecord?.data?.main_hero?.data?.role || null,
+		winRate: (Number(topRecord?.data?.main_hero_win_rate || 0) * 100).toFixed(1),
+		appearanceRate: (Number(topRecord?.data?.main_hero_appearance_rate || 0) * 100).toFixed(1),
+		rank,
+		days,
+	};
+};
+
 module.exports = {
 	getHeroes,
 	getHeroByName,
 	getHeroStatsById,
 	getHeroTrendsById,
 	getTopHeroesByLane,
+	getGlobalTopHero,
 };
-
-// Test execution when running the file directly
-if (require.main === module) {
-	(async () => {
-		try {
-			console.log('Fetching heroes...');
-			const result = await getHeroes();
-			
-			// Optional chaining safely parses nested MLBB API shape
-			const records = result?.data || result?.data?.records || [];
-			const items = Array.isArray(records) ? records : (records.records || []);
-			
-			console.log('--- Fetch Successful ---');
-			console.log('Code:', result?.code, '| Msg:', result?.message);
-			console.log('Returned heroes count:', items.length);
-			
-			if (items.length > 0) {
-				console.log('Preview of first 3 heroes:');
-				console.log(items.slice(0, 3).map(r => ({
-					id: r?.data?.hero?.hero_id || r?.hero_id,
-					name: r?.data?.hero?.data?.name || r?.name || r?.hero_name
-				})));
-			}
-		} catch (error) {
-			console.error('--- Fetch Failed ---');
-			console.error('Error message:', error?.message);
-			if (error?.cause) console.error('Cause:', error.cause.code || error.cause.name);
-		}
-	})();
-}
