@@ -42,6 +42,40 @@ const loadServiceWithMocks = ({ prismaMock, resendConfigMock }) => {
     return require(servicePath);
 };
 
+test('register throws when username is shorter than 6 characters', async () => {
+    const prismaMock = {
+        user: {
+            findUnique: async () => {
+                throw new Error('findUnique should not be called for invalid username');
+            },
+        },
+        emailVerification: {},
+    };
+    const service = loadServiceWithMocks({ prismaMock });
+
+    await assert.rejects(
+        () => service.register('user1', 'user@example.com', 'password123'),
+        /Username must be at least 6 characters/
+    );
+});
+
+test('login throws when password is shorter than 6 characters', async () => {
+    const prismaMock = {
+        user: {
+            findFirst: async () => {
+                throw new Error('findFirst should not be called for invalid password');
+            },
+        },
+        emailVerification: {},
+    };
+    const service = loadServiceWithMocks({ prismaMock });
+
+    await assert.rejects(
+        () => service.login('username', 'user@example.com', 'pass1'),
+        /Password must be at least 6 characters/
+    );
+});
+
 test('sendVerification throws when email is missing', async () => {
     const prismaMock = {
         user: {},

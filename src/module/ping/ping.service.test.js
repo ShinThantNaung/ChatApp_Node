@@ -29,6 +29,33 @@ test('createPing throws when payload is missing', async () => {
     );
 });
 
+test('createPing throws when ping name is shorter than 3 characters', async () => {
+    const prismaMock = {
+        ping: {
+            findFirst: async () => {
+                throw new Error('findFirst should not be called for invalid ping name');
+            },
+        },
+        role: {
+            findMany: async () => [],
+        },
+        pingMember: {
+            findFirst: async () => null,
+        },
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.createPing({
+            title: 'AB',
+            gameMode: 'rank',
+            maxPlayers: 5,
+            roles: [{ roleId: 'role-top-id', slots: 1 }],
+        }, 'user-1'),
+        /Ping name must be at least 3 characters/
+    );
+});
+
 test('createPing creates ping with trimmed title and creator as first member', async () => {
     const createArgs = [];
     const prismaMock = {

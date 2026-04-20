@@ -1,4 +1,5 @@
 const prisma = require('./ping.config');
+const { validatePingName } = require('./ping.validator');
 
 const MAX_JOIN_RETRIES = 2;
 
@@ -36,9 +37,8 @@ const createPing = async (data, userId) => {
         creatorRoleId,
         creatorRoleName,
     } = data;
-    if (!title || title.trim() === '') {
-        throw new Error('Ping name is required');
-    }
+    const normalizedTitle = validatePingName(title);
+
     if (!Array.isArray(roles) || roles.length === 0) {
         throw new Error('At least one role is required');
     }
@@ -128,7 +128,7 @@ const createPing = async (data, userId) => {
         selectedCreatorRoleId = mappedRoleId;
     }
 
-    const existingPing = await prisma.ping.findFirst({ where: { title } });
+    const existingPing = await prisma.ping.findFirst({ where: { title: normalizedTitle } });
     if (existingPing) {
         throw new Error('Ping already exists');
     }
@@ -143,7 +143,7 @@ const createPing = async (data, userId) => {
 
     const newPing = await prisma.ping.create({ 
         data: {
-            title: title.trim(),
+            title: normalizedTitle,
             gameMode,
             urgency,
             maxPlayers,

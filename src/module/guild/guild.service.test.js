@@ -29,6 +29,23 @@ test('createGuild throws when payload is missing', async () => {
     );
 });
 
+test('createGuild throws when guild name is shorter than 3 characters', async () => {
+    const prismaMock = {
+        guild: {
+            findFirst: async () => {
+                throw new Error('findFirst should not be called for invalid guild name');
+            },
+        },
+        guildMember: {},
+    };
+    const service = loadServiceWithPrismaMock(prismaMock);
+
+    await assert.rejects(
+        () => service.createGuild({ name: 'AB' }, 'user-1'),
+        /Guild name must be at least 3 characters/
+    );
+});
+
 test('createGuild creates guild when name is available', async () => {
     const createArgs = [];
     const prismaMock = {

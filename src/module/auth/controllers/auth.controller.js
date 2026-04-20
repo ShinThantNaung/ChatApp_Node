@@ -8,6 +8,8 @@ const getStatusCode = (message) => {
         case 'OTP must be a 6-digit code':
         case 'Username, email, and password are required':
         case 'Name, email, and password are required':
+        case 'Username must be at least 6 characters':
+        case 'Password must be at least 6 characters':
             return 422;
         case 'User already exists':
             return 409;

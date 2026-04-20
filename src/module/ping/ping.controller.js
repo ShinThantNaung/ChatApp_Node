@@ -13,6 +13,7 @@ const emitPingEvent = (eventName, payload) => {
 const getStatusCode = (message) => {
     switch (message) {
         case 'Ping name is required':
+        case 'Ping name must be at least 3 characters':
             return 422;
         case 'Ping already exists':
             return 409;

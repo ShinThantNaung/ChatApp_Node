@@ -1,11 +1,27 @@
 const prisma = require('../config/auth.config');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const { z } = require('zod');
 const { generateToken } = require('../utils/auth.utils');
 const { getResendClient, resendFromEmail } = require('../config/resend.config');
 
 const OTP_EXPIRY_MINUTES = 10;
 const OTP_EXPIRY_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
+
+const authCredentialsSchema = z.object({
+    username: z.string().trim().min(6, 'Username must be at least 6 characters'),
+    password: z.string().trim().min(6, 'Password must be at least 6 characters'),
+});
+
+const validateAuthCredentials = (username, password) => {
+    const parsed = authCredentialsSchema.safeParse({ username, password });
+
+    if (!parsed.success) {
+        throw new Error(parsed.error.issues?.[0]?.message || 'Invalid credentials payload');
+    }
+
+    return parsed.data;
+};
 
 const generateOtpCode = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 
@@ -16,7 +32,9 @@ const register = async (username, email, password) => {
         throw new Error('Username, email, and password are required');
     }
 
-    const normalizedUsername = username.trim();
+    const validatedCredentials = validateAuthCredentials(username, password);
+    const normalizedUsername = validatedCredentials.username;
+    const normalizedPassword = validatedCredentials.password;
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await prisma.user.findUnique({
@@ -27,7 +45,7 @@ const register = async (username, email, password) => {
         throw new Error('User already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(normalizedPassword, 10);
     const user = await prisma.user.create({
         data: {
             username: normalizedUsername,
@@ -53,7 +71,9 @@ const login = async (username, email, password) => {
         throw new Error('Username, email, and password are required');
     }
 
-    const normalizedUsername = username.trim();
+    const validatedCredentials = validateAuthCredentials(username, password);
+    const normalizedUsername = validatedCredentials.username;
+    const normalizedPassword = validatedCredentials.password;
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
@@ -67,7 +87,7 @@ const login = async (username, email, password) => {
         throw new Error('User does not exist');
     }
 
-    const isMatched = await bcrypt.compare(password, existingUser.password);
+    const isMatched = await bcrypt.compare(normalizedPassword, existingUser.password);
     if (!isMatched) {
         throw new Error('Invalid credentials');
     }

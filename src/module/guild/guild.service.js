@@ -1,4 +1,21 @@
 const prisma = require('./guild.config');
+const { z } = require('zod');
+
+const guildNameSchema = z.string().trim().min(3, 'Guild name must be at least 3 characters');
+
+const validateGuildName = (name) => {
+    if (typeof name !== 'string' || name.trim() === '') {
+        throw new Error('Guild name is required');
+    }
+
+    const parsed = guildNameSchema.safeParse(name);
+
+    if (!parsed.success) {
+        throw new Error(parsed.error.issues?.[0]?.message || 'Guild name is invalid');
+    }
+
+    return parsed.data;
+};
 
 const createGuild = async (data, userId) => {
     if (!data) {
@@ -7,9 +24,11 @@ const createGuild = async (data, userId) => {
     if(!userId) {
         throw new Error('Authentication required');
     }
+    const guildName = validateGuildName(data?.name);
+
     const existingGuild = await prisma.guild.findFirst({
         where: {
-            name: data.name,
+            name: guildName,
         },
     });
     if (existingGuild) {
@@ -17,7 +36,7 @@ const createGuild = async (data, userId) => {
     }
     const newGuild = await prisma.guild.create({
         data: {
-            name: data.name,
+            name: guildName,
             leaderId: userId,
             members: {
                 create: {

@@ -37,6 +37,7 @@ const getStatusCode = (message) => {
         case 'Only the guild leader can delete the guild':
             return 403;
         case 'Guild name is required':
+        case 'Guild name must be at least 3 characters':
             return 422;
         case 'Guild already exists':
             return 409;
