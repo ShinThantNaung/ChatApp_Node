@@ -2,6 +2,9 @@ const prisma = require('./ping.config');
 const { validatePingName } = require('./ping.validator');
 
 const MAX_JOIN_RETRIES = 2;
+const MIN_PING_PLAYERS = 2;
+const MAX_PING_PLAYERS = 10;
+const VALID_PING_STATUSES = new Set(['open', 'closed']);
 
 const isRetryableJoinConflict = (err) => err?.code === 'P2034';
 
@@ -38,6 +41,15 @@ const createPing = async (data, userId) => {
         creatorRoleName,
     } = data;
     const normalizedTitle = validatePingName(title);
+    const parsedMaxPlayers = Number(maxPlayers);
+    if (!Number.isInteger(parsedMaxPlayers) || parsedMaxPlayers < MIN_PING_PLAYERS || parsedMaxPlayers > MAX_PING_PLAYERS) {
+        throw new Error(`Max players must be an integer between ${MIN_PING_PLAYERS} and ${MAX_PING_PLAYERS}`);
+    }
+
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : 'open';
+    if (!VALID_PING_STATUSES.has(normalizedStatus)) {
+        throw new Error('Ping status must be open or closed');
+    }
 
     if (!Array.isArray(roles) || roles.length === 0) {
         throw new Error('At least one role is required');
@@ -146,8 +158,8 @@ const createPing = async (data, userId) => {
             title: normalizedTitle,
             gameMode,
             urgency,
-            maxPlayers,
-            status,
+            maxPlayers: parsedMaxPlayers,
+            status: normalizedStatus,
             creatorId: userId,
 
             roles: {

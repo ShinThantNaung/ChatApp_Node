@@ -1,5 +1,13 @@
 const { getMlbbClient } = require('./mlbbAcademy.config');
 
+const toPositiveInteger = (value, fieldName) => {
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed) || parsed <= 0) {
+		throw new Error(`${fieldName} must be a positive integer`);
+	}
+	return parsed;
+};
+
 const getHeroes = async (params = {}) => {
 	if(Object.keys(params).length === 0) {
 		params = { limit: 132 }; // default to fetching 132 heroes if no params provided
@@ -10,11 +18,11 @@ const getHeroes = async (params = {}) => {
 };
 
 const getHeroByName = async (name) => {
-	if(name === undefined) {
+	if(name === undefined || String(name).trim() === '') {
 		throw new Error('Hero name parameter is required');
 	}
 	const client = await getMlbbClient();
-	const hero = await client.mlbb.getHero(name);
+	const hero = await client.mlbb.getHero(String(name).trim());
 	return hero;
 };
 
@@ -22,8 +30,9 @@ const getHeroStatsById = async (id, params = {}) => {
 	if(id === undefined) {
 		throw new Error('Hero ID parameter is required');
 	}
+	const heroId = toPositiveInteger(id, 'Hero ID');
 	const client = await getMlbbClient();
-	const stats = await client.mlbb.getHeroStats(Number(id), params);
+	const stats = await client.mlbb.getHeroStats(heroId, params);
 	return stats;
 };
 
@@ -31,14 +40,21 @@ const getHeroTrendsById = async (id, params = {}) => {
 	if(id === undefined) {
 		throw new Error('Hero ID parameter is required');
 	}
+	const heroId = toPositiveInteger(id, 'Hero ID');
 	const client = await getMlbbClient();
-	const trends = await client.mlbb.getHeroTrends(Number(id), params);
+	const trends = await client.mlbb.getHeroTrends(heroId, params);
 	return trends;
 };
 
 const getTopHeroesByLane = async (role, lane) => {
 	const client = await getMlbbClient();
 	if(role === undefined || lane === undefined) {
+		throw new Error('Role and lane query parameters are required');
+	}
+
+	const normalizedRole = String(role).trim().toLowerCase();
+	const normalizedLane = String(lane).trim().toLowerCase();
+	if (!normalizedRole || !normalizedLane) {
 		throw new Error('Role and lane query parameters are required');
 	}
 	
@@ -58,7 +74,7 @@ const getTopHeroesByLane = async (role, lane) => {
 	});
 
 	// Get heroes by lane
-	const posResponse = await client.mlbb.getHeroesByPosition({ role, lane });
+	const posResponse = await client.mlbb.getHeroesByPosition({ role: normalizedRole, lane: normalizedLane });
 	const heroesInPos = posResponse?.data?.records || [];
 	
 	// Map to combined array and sort
@@ -83,8 +99,8 @@ const getTopHeroesByLane = async (role, lane) => {
 	}
 
 	return {
-		role,
-		lane,
+		role: normalizedRole,
+		lane: normalizedLane,
 		topHeroes: heroesWithStats
 	};
 };
@@ -93,7 +109,10 @@ const getGlobalTopHero = async (params = {}) => {
 	const client = await getMlbbClient();
 
 	const rank = params?.rank || 'mythic';
-	const days = Number.isFinite(Number(params?.days)) ? Number(params.days) : 7;
+	const days = params?.days === undefined ? 7 : toPositiveInteger(params.days, 'Days');
+	if (days > 30) {
+		throw new Error('Days must be 30 or less');
+	}
 	const sortField = params?.sortField || 'win_rate';
 
 	const ranksResponse = await client.mlbb.getHeroRanks({ rank, days, sortField });

@@ -1,13 +1,20 @@
 const prisma = require('../../config/prisma');
 const { toGuildRoom } = require('./guild.handler');
+const MAX_CHAT_MESSAGE_LENGTH = 500;
 
 module.exports = (io, socket) => {
     const sendGuildMessage = async ({ guildId, content } = {}) => {
         try {
+            const normalizedGuildId = typeof guildId === 'string' ? guildId.trim() : '';
             const normalizedContent = typeof content === 'string' ? content.trim() : '';
 
-            if (!guildId || !normalizedContent) {
+            if (!normalizedGuildId || !normalizedContent) {
                 socket.emit('error', 'Guild ID and content are required');
+                return;
+            }
+
+            if (normalizedContent.length > MAX_CHAT_MESSAGE_LENGTH) {
+                socket.emit('error', `Message is too long (max ${MAX_CHAT_MESSAGE_LENGTH} characters)`);
                 return;
             }
 
@@ -15,7 +22,7 @@ module.exports = (io, socket) => {
                 where: {
                     userId_guildId: {
                         userId: socket.user.id,
-                        guildId,
+                        guildId: normalizedGuildId,
                     },
                 },
                 select: { id: true },
@@ -26,11 +33,11 @@ module.exports = (io, socket) => {
                 return;
             }
 
-            const roomName = toGuildRoom(guildId);
+            const roomName = toGuildRoom(normalizedGuildId);
             await socket.join(roomName);
 
             const messagePayload = {
-                guildId,
+                guildId: normalizedGuildId,
                 content: normalizedContent,
                 sender: {
                     id: socket.user.id,
@@ -43,9 +50,9 @@ module.exports = (io, socket) => {
             io.to(roomName).emit('new_message', messagePayload);
             io.to(roomName).emit('guild:new_message', messagePayload);
 
-            console.log(`User ${socket.user.id} sent message to guild ${guildId}`);
+            console.log(`User ${socket.user.id} sent message to guild ${normalizedGuildId}`);
         } catch (err) {
-            console.log(err);
+            console.error('Failed to send guild message');
             socket.emit('error', 'Failed to send message');
         }
     };

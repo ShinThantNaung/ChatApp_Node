@@ -1,5 +1,6 @@
 const prisma = require('../module/auth/config/auth.config');
 const { verifyToken } = require('../module/auth/utils/auth.utils');
+const { logAuditEvent } = require('../utils/audit.logger');
 
 const extractTokenFromSocket = (socket) => {
 	const authToken = socket.handshake?.auth?.token;
@@ -19,6 +20,9 @@ const socketAuth = async (socket, next) => {
 	try {
 		const token = extractTokenFromSocket(socket);
 		if (!token) {
+			logAuditEvent('auth.socket.denied', {
+				reason: 'missing_token',
+			});
 			return next(new Error('Authentication error: No token provided'));
 		}
 
@@ -29,6 +33,9 @@ const socketAuth = async (socket, next) => {
 		});
 
 		if (!user) {
+			logAuditEvent('auth.socket.denied', {
+				reason: 'user_not_found',
+			});
 			return next(new Error('Authentication error: User not found'));
 		}
 
@@ -36,6 +43,9 @@ const socketAuth = async (socket, next) => {
 		socket.data.user = user;
 		next();
 	} catch (err) {
+		logAuditEvent('auth.socket.denied', {
+			reason: 'invalid_token',
+		});
 		return next(new Error('Authentication error: Invalid token'));
 	}
 };

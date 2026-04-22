@@ -25,6 +25,8 @@ const getStatusCode = (message) => {
             return 403;
         case 'Ping payload is required':
         case 'Ping id is required':
+        case 'Max players must be an integer between 2 and 10':
+        case 'Ping status must be open or closed':
         case 'At least one role is required':
         case 'Each role must include roleId or role name, and slots > 0':
         case 'One or more roles are invalid':

@@ -1,46 +1,69 @@
 const prisma = require('../config/auth.config');
 const { verifyToken } = require('../utils/auth.utils');
+const { logAuditEvent } = require('../../../utils/audit.logger');
+
+const extractBearerToken = (authHeader) => {
+    if (typeof authHeader !== 'string') {
+        return null;
+    }
+
+    const trimmed = authHeader.trim();
+    const matches = /^Bearer\s+(.+)$/i.exec(trimmed);
+    if (!matches || !matches[1]) {
+        return null;
+    }
+
+    return matches[1].trim();
+};
 
 const authenticate = async (req, res, next) => {
     try {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ message: 'No token provided' });
-    }
-    const token = authHeader.split(' ')[1];
-    if(!token){
-        return res.status(401).json({ message: 'No token provided' });
-    }
-    const decoded = verifyToken(token);
-    const user = await prisma.user.findUnique({
-        where: {
-            id: decoded.id
+        const authHeader = req.headers.authorization;
+        const token = extractBearerToken(authHeader);
+
+        if (!token) {
+            logAuditEvent('auth.http.denied', {
+                reason: 'missing_or_malformed_bearer',
+                ip: req.ip,
+                path: req.originalUrl,
+                method: req.method,
+            });
+            return res.status(401).json({ message: 'No token provided' });
         }
-    });
-    if (!user) {
-        return res.status(401).json({ message: 'User not found' });
-    }
-    req.user = { id: user.id, username: user.username, email: user.email };
-    next();
+
+        const decoded = verifyToken(token);
+        const user = await prisma.user.findUnique({
+            where: {
+                id: decoded.id,
+            },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+            },
+        });
+
+        if (!user) {
+            logAuditEvent('auth.http.denied', {
+                reason: 'user_not_found',
+                ip: req.ip,
+                path: req.originalUrl,
+                method: req.method,
+            });
+            return res.status(401).json({ message: 'User not found' });
+        }
+
+        req.user = user;
+        return next();
     } catch (err) {
+        logAuditEvent('auth.http.denied', {
+            reason: 'invalid_token',
+            ip: req.ip,
+            path: req.originalUrl,
+            method: req.method,
+        });
         return res.status(401).json({ message: 'Invalid token' });
     }
 };
-/*
-const validate = (schema) => (req, res, next) => {
-  const result = schema.safeParse(req.body);
 
-  if (!result.success) {
-    return res.status(400).json({
-      message: "Validation failed",
-      errors: result.error.flatten(),
-    });
-  }
-
-  // overwrite with clean data
-  req.body = result.data;
-
-  next();
-};
-*/
 module.exports = { authenticate };

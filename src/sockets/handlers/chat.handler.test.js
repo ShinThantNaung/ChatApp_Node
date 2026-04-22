@@ -76,6 +76,36 @@ test('chat handler emits error when sender is not guild member', async () => {
     assert.deepEqual(emitted, [{ event: 'error', payload: 'You must join this guild before chatting' }]);
 });
 
+test('chat handler emits error when message is too long', async () => {
+    const chatHandler = loadChatHandlerWithPrismaMock({
+        guildMember: { findUnique: async () => ({ id: 'member-1' }) },
+    });
+
+    const handlers = new Map();
+    const emitted = [];
+    const ioEmits = [];
+    const socket = {
+        user: { id: 'user-1', username: 'alice', avatarUrl: null },
+        on: (event, fn) => handlers.set(event, fn),
+        emit: (event, payload) => emitted.push({ event, payload }),
+        join: async () => {},
+    };
+
+    const io = {
+        to: () => ({
+            emit: (...args) => ioEmits.push(args),
+        }),
+    };
+
+    chatHandler(io, socket);
+
+    const oversized = 'x'.repeat(501);
+    await handlers.get('send_message')({ guildId: 'guild-1', content: oversized });
+
+    assert.deepEqual(emitted, [{ event: 'error', payload: 'Message is too long (max 500 characters)' }]);
+    assert.equal(ioEmits.length, 0);
+});
+
 test('chat handler broadcasts normalized message to both guild events', async () => {
     const chatHandler = loadChatHandlerWithPrismaMock({
         guildMember: { findUnique: async () => ({ id: 'member-1' }) },

@@ -25,7 +25,7 @@ const isNotFound = (err) => {
 
 const handleMlbbError = (res, err, fallbackMessage) => {
 	if (isUpstreamTimeout(err)) {
-		return res.status(504).json({ message: 'Upstream timed out', error: err?.message });
+		return res.status(504).json({ message: 'Upstream timed out' });
 	}
 
 	if (isBadRequest(err)) {
@@ -36,7 +36,7 @@ const handleMlbbError = (res, err, fallbackMessage) => {
 		return res.status(404).json({ message: err?.message || 'Resource not found' });
 	}
 
-	return res.status(500).json({ message: fallbackMessage, error: err?.message });
+	return res.status(500).json({ message: fallbackMessage });
 };
 
 const getHeroes = async (req, res) => {

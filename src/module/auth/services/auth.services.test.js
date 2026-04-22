@@ -174,6 +174,52 @@ test('sendVerification hashes otp, stores expiry, and sends email', async () => 
     }
 });
 
+test('sendVerification enforces resend cooldown', async () => {
+    let upsertCount = 0;
+    const prismaMock = {
+        user: {
+            findUnique: async () => ({
+                id: 'user-1',
+                email: 'user@example.com',
+                isEmailVerified: false,
+            }),
+        },
+        emailVerification: {
+            upsert: async () => {
+                upsertCount += 1;
+                return { id: 'ver-1' };
+            },
+        },
+    };
+
+    const service = loadServiceWithMocks({
+        prismaMock,
+        resendConfigMock: {
+            getResendClient: () => ({
+                emails: {
+                    send: async () => undefined,
+                },
+            }),
+            resendFromEmail: 'onboarding@resend.dev',
+        },
+    });
+
+    const originalRandomInt = crypto.randomInt;
+    crypto.randomInt = () => 123456;
+
+    try {
+        await service.sendVerification('user@example.com');
+        await assert.rejects(
+            () => service.sendVerification('user@example.com'),
+            /Please wait before requesting a new verification code/
+        );
+    } finally {
+        crypto.randomInt = originalRandomInt;
+    }
+
+    assert.equal(upsertCount, 1);
+});
+
 test('verifyEmailOtp throws when otp is not 6 digits', async () => {
     const prismaMock = {
         user: {
@@ -261,6 +307,44 @@ test('verifyEmailOtp throws when otp hash does not match', async () => {
     );
 
     assert.equal(transactionCalled, false);
+});
+
+test('verifyEmailOtp locks verification after repeated invalid attempts', async () => {
+    const prismaMock = {
+        user: {
+            findUnique: async () => ({
+                id: 'user-1',
+                email: 'user@example.com',
+                isEmailVerified: false,
+            }),
+            update: async () => ({ id: 'user-1' }),
+        },
+        emailVerification: {
+            findUnique: async () => ({
+                userId: 'user-1',
+                otpHash: crypto.createHash('sha256').update('999999').digest('hex'),
+                expiresAt: new Date(Date.now() + 60 * 1000),
+            }),
+            delete: async () => ({ id: 'ver-1' }),
+        },
+        $transaction: async () => {
+            throw new Error('transaction should not be called on invalid otp');
+        },
+    };
+
+    const service = loadServiceWithMocks({ prismaMock });
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        await assert.rejects(
+            () => service.verifyEmailOtp('user@example.com', '123456'),
+            /Invalid verification code/
+        );
+    }
+
+    await assert.rejects(
+        () => service.verifyEmailOtp('user@example.com', '123456'),
+        /Too many failed attempts. Try again later/
+    );
 });
 
 test('verifyEmailOtp marks user verified and deletes verification record', async () => {

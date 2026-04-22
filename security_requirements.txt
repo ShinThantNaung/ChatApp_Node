@@ -1,0 +1,25 @@
+SECURITY REQUIREMENTS
+Date: 2026-04-22
+Scope: ChatApp backend (HTTP API, Socket server, Prisma/MySQL)
+
+1.All protected HTTP endpoints must require valid bearer token authentication and reject malformed authorization headers with 401.
+2.All Socket connections must require valid token authentication before connection is accepted.
+3. All Socket events that access scoped resources must enforce authorization checks per resource (example: ping room and guild room membership).
+4. Ping room join flow must stop execution immediately after any authorization or existence failure and must never join a room after an error response.
+5. Input validation must be applied at route boundary for every request body, params, and query using strict schemas (reject unknown fields).
+6. String inputs must be normalized (trim, lowercase where appropriate) and constrained with minimum and maximum length.
+7. Numeric inputs must be validated as finite integers with explicit range limits (example: id, maxPlayers, slots, days).
+8. Chat and message payloads must enforce content length limits and reject empty or oversized content.
+9. Authentication endpoints (login, send verification, verify OTP) must have rate limiting by IP and account identifier.
+10. OTP verification must enforce failed-attempt limits, cooldown/lockout, and resend throttling to prevent brute-force attacks.
+11. CORS must use an explicit allowlist of trusted origins for both HTTP and Socket servers; wildcard origins are not allowed in production.
+12. Security headers must be enabled for HTTP responses (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.).
+13. Error responses must not expose internal exception details, upstream error internals, stack traces, or database/system messages to clients.
+14. Sensitive data (password hash, OTP values, tokens, secrets) must never be logged.
+15. Secrets (JWT secret, database URL, email provider keys) must be loaded from environment variables and validated at startup; missing secrets must fail startup.
+16. Database operations must use parameterized ORM queries or safe raw templates only; string-concatenated SQL is prohibited.
+17. Audit logging must capture authentication failures, OTP failures, and authorization denials with timestamp and source metadata.
+18. Production deployment must require passing all test suites, including integration and socket-related tests, before release.
+19. A periodic dependency vulnerability scan and patch cycle must be part of release QA.
+20. Incident rollback plan and monitoring alerts (error spikes, auth abuse, latency) must be active for every deployment.
+21. If you switch to edit mode, I can create the txt file in the project root for you automatically.
